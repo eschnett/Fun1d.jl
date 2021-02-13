@@ -1,0 +1,9 @@
+name = "Fun1d"
+uuid = "4ff79974-a1af-4bb7-bd3d-381f82a1e309"
+authors = ["Erik Schnetter <schnetter@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
