@@ -154,4 +154,39 @@ end
 
 ################################################################################
 
+export deriv
+"""
+Derivative of a grid function
+"""
+function deriv(f::GridFun{S,T}) where {S,T}
+    dx = spacing(f.grid)
+    n = f.grid.ncells + 1
+    dvalues = Array{T}(undef, n)
+    dvalues[1] = (f.values[2] - f.values[1]) / dx
+    for i in 2:(n - 1)
+        dvalues[i] = (f.values[i + 1] - f.values[i - 1]) / 2dx
+    end
+    dvalues[n] = (f.values[n] - f.values[n - 1]) / dx
+    return GridFun(f.grid, dvalues)
+end
+
+export deriv2
+"""
+Second derivative of a grid function
+"""
+function deriv2(f::GridFun{S,T}) where {S,T}
+    dx = spacing(f.grid)
+    n = f.grid.ncells + 1
+    d2values = Array{T}(undef, n)
+    d2values[1] = (f.values[3] - 2 * f.values[2] + f.values[1]) / dx^2
+    for i in 2:(n - 1)
+        d2values[i] = (f.values[i - 1] - 2 * f.values[i] + f.values[i + 1]) /
+                      dx^2
+    end
+    d2values[n] = (f.values[n - 2] - 2 * f.values[n - 1] + f.values[n]) / dx^2
+    return GridFun(f.grid, d2values)
+end
+
+################################################################################
+
 end

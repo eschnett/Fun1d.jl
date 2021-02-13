@@ -17,6 +17,7 @@ const Rat128 = Rational{Int128}
     @test Fun1d.invariant(domain)
 end
 
+Random.seed!(0)
 @testset "Grid" begin
     S = Rat128
     domain = Domain{S}(0, 1)
@@ -66,11 +67,12 @@ end
 end
 
 Random.seed!(0)
-@testset "GridFun" begin
+@testset "GridFuns are vectors" begin
     S = Rat128
     T = Rat128
     domain = Domain{S}(0, 1)
     grid = Grid(domain, 10)
+
     for n in 1:10
         f = rand(GridFun{S,T}, grid)
         g = rand(GridFun{S,T}, grid)
@@ -129,17 +131,12 @@ Random.seed!(0)
     end
 end
 
-Random.seed!(0)
 @testset "GridFun convergence" begin
     S = Float64
     T = Float64
     domain = Domain{S}(0, 1)
     grid1 = Grid(domain, 20)
     grid2 = Grid(domain, 40)
-
-    fun(x) = sinpi(x)
-    gf1 = sample(T, grid1, fun)
-    gf2 = sample(T, grid2, fun)
 
     atol = eps(T)^(T(3) / 4)
     function int(f)
@@ -150,8 +147,72 @@ Random.seed!(0)
         return sqrt(int(x -> abs2(f(x))) / (domain.xmax - domain.xmin))
     end
 
+    fun(x) = sinpi(x)
+    gf1 = sample(T, grid1, fun)
+    gf2 = sample(T, grid2, fun)
+
     e1 = norm2(x -> evaluate(gf1, x) - fun(x))
     e2 = norm2(x -> evaluate(gf2, x) - fun(x))
     ratio = e1 / e2
     @test isapprox(ratio, 4; rtol=0.01)
+end
+
+@testset "GridFun derivative linearity" begin
+    S = Rat128
+    T = Rat128
+    domain = Domain{S}(0, 1)
+    grid = Grid(domain, 10)
+
+    for n in 1:10
+        f = rand(GridFun{S,T}, grid)
+        g = rand(GridFun{S,T}, grid)
+        z = zero(GridFun{S,T}, grid)
+        a = rand(T)
+
+        @test deriv(z) == z
+        @test deriv(f + g) == deriv(f) + deriv(g)
+        @test deriv(a * f) == a * deriv(f)
+    end
+end
+
+@testset "GridFun derivative accuracy" begin
+    S = Float64
+    T = Float64
+    domain = Domain{S}(0, 1)
+    grid1 = Grid(domain, 20)
+    grid2 = Grid(domain, 40)
+
+    atol = eps(T)^(T(3) / 4)
+    function int(f)
+        I, E = quadgk(f, domain.xmin, domain.xmax; atol=atol)
+        return I
+    end
+    function norm2(f)
+        return sqrt(int(x -> abs2(f(x))) / (domain.xmax - domain.xmin))
+    end
+
+    fun(x) = sinpi(x)
+    gf1 = sample(T, grid1, fun)
+    gf2 = sample(T, grid2, fun)
+
+    dfun(x) = π * cospi(x)
+    dgf1 = deriv(gf1)
+    dgf2 = deriv(gf2)
+
+    d2fun(x) = -T(π)^2 * sinpi(x)
+    d2gf1 = deriv2(gf1)
+    d2gf2 = deriv2(gf2)
+
+    # ef1 = norm2(x -> evaluate(gf1, x) - fun(x))
+    # ef2 = norm2(x -> evaluate(gf2, x) - fun(x))
+    edf1 = norm2(x -> evaluate(dgf1, x) - dfun(x))
+    edf2 = norm2(x -> evaluate(dgf2, x) - dfun(x))
+    ed2f1 = norm2(x -> evaluate(d2gf1, x) - d2fun(x))
+    ed2f2 = norm2(x -> evaluate(d2gf2, x) - d2fun(x))
+
+    ratio = edf1 / edf2
+    @test isapprox(ratio, 4; rtol=0.01)
+    # What evil magic leads to a convergence factor of √8?
+    ratio2 = ed2f1 / ed2f2
+    @test isapprox(ratio2, sqrt(8); rtol=0.01)
 end
