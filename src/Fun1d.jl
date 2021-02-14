@@ -77,7 +77,7 @@ export GridFun
 """
 A grid function, i.e. a discretized function living on a grid
 """
-struct GridFun{S,T}
+struct GridFun{S,T} <: AbstractArray{T,1}
     grid::Grid{S}
     values::Vector{T}
 
@@ -97,9 +97,45 @@ function GridFun(grid::Grid{S}, values::Vector{T}) where {S,T}
     return GridFun{S,T}(grid, values)
 end
 
-Base.map(fun, f::GridFun) = GridFun(f.grid, map(fun, f.values))
+# Iteration
+Base.eltype(::Type{GridFun{S,T}}) where {S,T} = T
+Base.isempty(::GridFun) = false
+Base.iterate(f::GridFun, state...) = iterate(f.values, state...)
+# Base.length(f::GridFun) = length(f.values)
+
+# Indexing
+Base.firstindex(::GridFun) = firstindex(f.values)
+Base.getindex(f::GridFun, i) = getindex(f.values, i)
+Base.lastindex(f::GridFun) = lastindex(f.values)
+Base.setindex!(f::GridFun, v, i) = setindex!(f.values, v, i)
+
+# Abstract Array
+Base.size(f::GridFun) = size(f.values)
+Base.IndexStyle(::GridFun) = IndexLinear()
+Base.similar(f::GridFun) = GridFun(f.grid, similar(f.values))
+function Base.similar(f::GridFun, ::Type{T}) where {T}
+    return GridFun(f.grid, similar(f.values, T))
+end
+Base.similar(f::GridFun, ::Dims) = similar(f)
+Base.similar(f::GridFun, ::Dims, ::Type{T}) where {T} = similar(f, T)
+
+# Broadcasting
+Base.BroadcastStyle(::Type{<:GridFun}) = Broadcast.ArrayStyle{GridFun}()
+function Base.similar(bc::Broadcast.Broadcasted{Broadcast.ArrayStyle{GridFun}},
+                      ::Type{T}) where {T}
+    f = find_gridfun(bc)
+    return similar(f, T)
+end
+find_gridfun(bc::Base.Broadcast.Broadcasted) = find_gridfun(bc.args)
+find_gridfun(args::Tuple) = find_gridfun(find_gridfun(args[1]), Base.tail(args))
+find_gridfun(x) = x
+find_gridfun(::Tuple{}) = nothing
+find_gridfun(a::GridFun, rest) = a
+find_gridfun(::Any, rest) = find_gridfun(rest)
+
+# Others
 function Base.map(fun, f::GridFun, gs::GridFun...)
-    @assert all(f.grid == g.grid for g in gs)
+    @assert all(g.grid == f.grid for g in gs)
     return GridFun(f.grid, map(fun, f.values, (g.values for g in gs)...))
 end
 
@@ -114,6 +150,7 @@ end
 function Base.zero(::Type{GridFun{S,T}}, grid::Grid{S}) where {S,T}
     return GridFun(grid, zeros(T, grid.ncells + 1))
 end
+Base.zero(f::GridFun{S,T}) where {S,T} = zero(GridFun{S,T}, f.grid)
 
 Base.iszero(f::GridFun) = all(iszero, f.values)
 
