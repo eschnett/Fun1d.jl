@@ -127,10 +127,32 @@ Random.seed!(0)
     for n in 1:10
         x = lincom(1, grid.domain.xmin, 1000000, grid.domain.xmax,
                    rand(1:1000000))
-        @test evaluate(gf, x)::T == m * x + b
+        @test evaluate(gf, x) == fun(x)
     end
 end
 
+Random.seed!(0)
+@testset "GridFun project/evaluate" begin
+    S = Float64
+    T = Float64
+    domain = Domain{S}(0, 1)
+    grid = Grid(domain, 10)
+
+    m = rand(T)
+    b = rand(T)
+    fun(x) = m * x + b
+    gf = project(T, grid, fun)
+    @test Fun1d.invariant(gf)
+
+    atol = eps(T)^(T(3) / 4)
+    for n in 1:1 #TODO 10
+        x = lincom(1, grid.domain.xmin, 1000000, grid.domain.xmax,
+                   rand(1:1000000))
+        @test isapprox(evaluate(gf, x), fun(x); atol=atol)
+    end
+end
+
+Random.seed!(0)
 @testset "GridFun convergence" begin
     S = Float64
     T = Float64

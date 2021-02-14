@@ -1,5 +1,7 @@
 module Fun1d
 
+using LinearAlgebra
+using QuadGK
 using Random
 
 ################################################################################
@@ -137,11 +139,41 @@ function sample(::Type{T}, grid::Grid{S}, fun) where {S,T}
     return GridFun(grid, values)
 end
 
+export project
+"""
+Project a function onto the basis functions
+"""
+function project(::Type{T}, grid::Grid{S}, fun) where {S,T}
+    atol = eps(T)^(T(3) / 4)
+    n = grid.ncells + 1
+    dx = spacing(grid)
+
+    fbvalues = Array{T}(undef, n)
+    for i in 1:n
+        x0 = location(grid, i)
+        xmin = max(grid.domain.xmin, x0 - dx)
+        xmax = min(grid.domain.xmax, x0 + dx)
+        I, E = quadgk(x -> fun(x) * basis(grid, i, x), xmin, xmax; atol=atol)
+        fbvalues[i] = I
+    end
+
+    bbdiag = Array{S}(undef, n)
+    bbdiag[1] = dx / 3
+    bbdiag[2:(end - 1)] .= 2 * dx / 3
+    bbdiag[end] = dx / 3
+    bbsdiag = Array{S}(undef, n - 1)
+    bbsdiag[1:end] .= dx / 6
+    bbmatrix = SymTridiagonal(bbdiag, bbsdiag)
+
+    fvalues = bbmatrix \ fbvalues
+    return GridFun(grid, fvalues)
+end
+
 export evaluate
 """
 Evaluate a grid function at an arbitrary point
 """
-function evaluate(f::GridFun{S}, x::S) where {S}
+function evaluate(f::GridFun{S,T}, x::S) where {S,T}
     q = lincom(f.grid.domain.xmin, S(1), f.grid.domain.xmax,
                S(f.grid.ncells + 1), x)
     @assert q ≥ 1 && q ≤ f.grid.ncells + 1
@@ -149,10 +181,29 @@ function evaluate(f::GridFun{S}, x::S) where {S}
     y1 = f.values[n] * basis(f.grid, n, x)
     y2 = f.values[n + 1] * basis(f.grid, n + 1, x)
     y = y1 + y2
-    return y
+    return y::T
 end
 
+# TODO: norm2 (both for continuum and grid functions)
+
 ################################################################################
+
+export integrate
+"""
+Integrate a grid function over the whole domain
+"""
+function integrate(f::GridFun{S,T}) where {S,T}
+    dx = spacing(f.grid)
+    n = f.grid.ncells + 1
+    int = zero(T)
+    int += f.values[1] / 2
+    for i in 2:(n - 1)
+        int += f.values[i]
+    end
+    int += f.values[n] / 2
+    int /= dx
+    return int
+end
 
 export deriv
 """
