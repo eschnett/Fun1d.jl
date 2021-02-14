@@ -97,6 +97,12 @@ function GridFun(grid::Grid{S}, values::Vector{T}) where {S,T}
     return GridFun{S,T}(grid, values)
 end
 
+Base.map(fun, f::GridFun) = GridFun(f.grid, map(fun, f.values))
+function Base.map(fun, f::GridFun, gs::GridFun...)
+    @assert all(f.grid == g.grid for g in gs)
+    return GridFun(f.grid, map(fun, f.values, (g.values for g in gs)...))
+end
+
 function Base.rand(rng::AbstractRNG, ::Type{GridFun{S,T}},
                    grid::Grid{S}) where {S,T}
     return GridFun(grid, rand(rng, T, grid.ncells + 1))
@@ -201,9 +207,17 @@ function integrate(f::GridFun{S,T}) where {S,T}
         int += f.values[i]
     end
     int += f.values[n] / 2
-    int /= dx
+    int *= dx
     return int
 end
+
+export norm2
+"""
+L2-norm of a grid function
+"""
+norm2(f::GridFun) = sqrt(integrate(map(abs2, f)))
+
+#function LinearAlgebra.norm(f::GridFun{S,T})where{S,T}
 
 export deriv
 """

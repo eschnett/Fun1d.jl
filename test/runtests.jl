@@ -86,6 +86,10 @@ Random.seed!(0)
         @test Fun1d.invariant(h)
         @test Fun1d.invariant(z)
 
+        @test map(identity, f) == f
+        @test map(x -> x + b, map(x -> a * x, f)) == map(x -> a * x + b, f)
+        @test map(+, f, g) == f + g
+
         @test iszero(z)
         @test f == f
         @test +f == f
@@ -145,7 +149,7 @@ Random.seed!(0)
     @test Fun1d.invariant(gf)
 
     atol = eps(T)^(T(3) / 4)
-    for n in 1:1 #TODO 10
+    for n in 1:10
         x = lincom(1, grid.domain.xmin, 1000000, grid.domain.xmax,
                    rand(1:1000000))
         @test isapprox(evaluate(gf, x), fun(x); atol=atol)
@@ -165,9 +169,7 @@ Random.seed!(0)
         I, E = quadgk(f, domain.xmin, domain.xmax; atol=atol)
         return I
     end
-    function norm2(f)
-        return sqrt(int(x -> abs2(f(x))) / (domain.xmax - domain.xmin))
-    end
+    norm2(f) = sqrt(int(x -> abs2(f(x))))
 
     fun(x) = sinpi(x)
     gf1 = sample(T, grid1, fun)
@@ -197,6 +199,36 @@ end
     end
 end
 
+@testset "GridFun integral accuracy" begin
+    S = Float64
+    T = Float64
+    domain = Domain{S}(0, 1)
+    grid1 = Grid(domain, 20)
+    grid2 = Grid(domain, 40)
+
+    atol = eps(T)^(T(3) / 4)
+
+    fun(x) = sinpi(x)
+    gf1 = sample(T, grid1, fun)
+    gf2 = sample(T, grid2, fun)
+
+    i0 = 2 / T(π)
+    i1 = integrate(gf1)
+    i2 = integrate(gf2)
+    iratio = (i1 - i0) / (i2 - i0)
+    @test isapprox(iratio, 4; atol=0.01)
+
+    n0 = 1 / sqrt(T(2))
+    n1 = norm2(gf1)
+    n2 = norm2(gf2)
+    # nratio = (n1 - n0) / (n2 - n0)
+    # @test isapprox(nratio, 4; atol=0.01)
+    # Strangely, this result is much more accurate than expected. I
+    # won't complain.
+    @test isapprox(n1, n0; atol=atol)
+    @test isapprox(n2, n0; atol=atol)
+end
+
 @testset "GridFun derivative accuracy" begin
     S = Float64
     T = Float64
@@ -209,9 +241,7 @@ end
         I, E = quadgk(f, domain.xmin, domain.xmax; atol=atol)
         return I
     end
-    function norm2(f)
-        return sqrt(int(x -> abs2(f(x))) / (domain.xmax - domain.xmin))
-    end
+    norm2(f) = sqrt(int(x -> abs2(f(x))))
 
     fun(x) = sinpi(x)
     gf1 = sample(T, grid1, fun)
