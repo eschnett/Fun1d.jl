@@ -104,7 +104,7 @@ Base.iterate(f::GridFun, state...) = iterate(f.values, state...)
 # Base.length(f::GridFun) = length(f.values)
 
 # Indexing
-Base.firstindex(::GridFun) = firstindex(f.values)
+Base.firstindex(f::GridFun) = firstindex(f.values)
 Base.getindex(f::GridFun, i) = getindex(f.values, i)
 Base.lastindex(f::GridFun) = lastindex(f.values)
 Base.setindex!(f::GridFun, v, i) = setindex!(f.values, v, i)
