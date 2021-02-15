@@ -196,6 +196,14 @@ end
         @test deriv(z) == z
         @test deriv(f + g) == deriv(f) + deriv(g)
         @test deriv(a * f) == a * deriv(f)
+
+        @test deriv2(z) == z
+        @test deriv2(f + g) == deriv2(f) + deriv2(g)
+        @test deriv2(a * f) == a * deriv2(f)
+
+        @test deriv2_sphere(z) == z
+        @test deriv2_sphere(f + g) == deriv2_sphere(f) + deriv2_sphere(g)
+        @test deriv2_sphere(a * f) == a * deriv2_sphere(f)
     end
 end
 
@@ -237,8 +245,10 @@ end
     grid2 = Grid(domain, 40)
 
     atol = eps(T)^(T(3) / 4)
+    dx = spacing(grid1)
     function int(f)
-        I, E = quadgk(f, domain.xmin, domain.xmax; atol=atol)
+        # Omit outer boundary to get good convergence
+        I, E = quadgk(f, domain.xmin + dx, domain.xmax - dx; atol=atol)
         return I
     end
     norm2(f) = sqrt(int(x -> abs2(f(x))))
@@ -264,7 +274,38 @@ end
 
     ratio = edf1 / edf2
     @test isapprox(ratio, 4; rtol=0.01)
-    # What evil magic leads to a convergence factor of √8?
     ratio2 = ed2f1 / ed2f2
-    @test isapprox(ratio2, sqrt(8); rtol=0.01)
+    @test isapprox(ratio2, 4; rtol=0.01)
+end
+
+@testset "GridFun spherical derivative accuracy" begin
+    S = Float64
+    T = Float64
+    domain = Domain{S}(0, 1)
+    grid1 = Grid(domain, 20)
+    grid2 = Grid(domain, 40)
+
+    atol = eps(T)^(T(3) / 4)
+    dx = spacing(grid1)
+    function int(f)
+        # Omit outer boundary to get good convergence
+        I, E = quadgk(f, domain.xmin, domain.xmax - dx; atol=atol)
+        return I
+    end
+    # norm2(f) = sqrt(int(r -> 4 * T(π) * r^2 * abs2(f(r))))
+    norm2(f) = sqrt(int(r -> abs2(f(r))))
+
+    fun(r) = cospi(r)
+    gf1 = sample(T, grid1, fun)
+    gf2 = sample(T, grid2, fun)
+
+    d2fun(r) = -T(π)^2 * (cospi(r) + 2 * sinc(r))
+    d2gf1 = deriv2_sphere(gf1)
+    d2gf2 = deriv2_sphere(gf2)
+
+    ed2f1 = norm2(r -> evaluate(d2gf1, r) - d2fun(r))
+    ed2f2 = norm2(r -> evaluate(d2gf2, r) - d2fun(r))
+
+    ratio2 = ed2f1 / ed2f2
+    @test isapprox(ratio2, 4; rtol=0.02)
 end

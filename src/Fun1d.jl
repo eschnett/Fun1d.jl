@@ -280,12 +280,61 @@ function deriv2(f::GridFun{S,T}) where {S,T}
     dx = spacing(f.grid)
     n = f.grid.ncells + 1
     d2values = Array{T}(undef, n)
-    d2values[1] = (f.values[3] - 2 * f.values[2] + f.values[1]) / dx^2
     for i in 2:(n - 1)
         d2values[i] = (f.values[i - 1] - 2 * f.values[i] + f.values[i + 1]) /
                       dx^2
     end
-    d2values[n] = (f.values[n - 2] - 2 * f.values[n - 1] + f.values[n]) / dx^2
+    d2values[1] = d2values[2]
+    d2values[n] = d2values[n - 1]
+    return GridFun(f.grid, d2values)
+end
+
+export deriv2_sphere
+"""
+Second derivative of a grid function in spherical coordinates,
+including the metric term (∂ᵣᵣ + 2/r ∂ᵣ)
+"""
+function deriv2_sphere(f::GridFun{S,T}) where {S,T}
+    dx = spacing(f.grid)
+    n = f.grid.ncells + 1
+    d2values = Array{T}(undef, n)
+    # Use L'Hôpital's rule at r = 0: limit (r→0) f′(r) / r = f′′(0)
+    d2values[1] = 6 * (f.values[2] - f.values[1]) / dx^2
+    for i in 2:(n - 1)
+        r = dx * (i - 1)
+        d2values[i] = (f.values[i - 1] - 2 * f.values[i] + f.values[i + 1]) /
+                      dx^2 + 2 / r * (f.values[i + 1] - f.values[i - 1]) / 2dx
+    end
+    r = dx * (n - 1)
+    d2values[n] = (f.values[n - 2] - 2 * f.values[n - 1] + f.values[n]) / dx^2 +
+                  2 / r * (f.values[n] - f.values[n - 1]) / dx
+    return GridFun(f.grid, d2values)
+end
+
+function deriv2_sphere_unused(f::GridFun{S,T}) where {S,T}
+    dx = spacing(f.grid)
+    n = f.grid.ncells + 1
+    # 1/r² ∂_r r² ∂ᵣ
+    # 1. cell-centred (forward) derivative:
+    #    u[i] := (u[i+1] - u[i]) / dx
+    # 2. multiply by metric term:
+    #    u[i] := ((i+1/2) dx)^2 * u[i]
+    # 3. vertex-centred (backward) derivative:
+    #    u[i] := (u[i] - u[i-1]) / dx
+    # 4. divide by metric term:
+    #    u[i] := 1/(i dx)^2 * u[i]
+    d2values = Array{T}(undef, n)
+    d2values[1] = 6 * (f.values[2] - f.values[1]) / dx^2
+    for i in 2:(n - 1)
+        j = i - 1
+        d2values[i] = ((1 + (1 - 4 * j) / T(4 * j^2)) * f.values[i - 1] -
+                       (2 + 2 / T(4 * j^2)) * f.values[i] +
+                       (1 + (1 + 4 * j) / T(4 * j^2)) * f.values[i + 1]) / dx^2
+    end
+    j = n - 1
+    d2values[n] = ((1 + (1 - 2 * j) / T(2 * j^2)) * f.values[n - 2] -
+                   (2 + 2 / T(2 * j^2)) * f.values[n - 1] +
+                   (1 + (1 + 2 * j) / T(2 * j^2)) * f.values[n]) / dx^2
     return GridFun(f.grid, d2values)
 end
 
