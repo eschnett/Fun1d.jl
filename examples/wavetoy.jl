@@ -81,6 +81,8 @@ Base.:*(a::Number, x::Wave) = map(b -> a * b, x)
 Base.:/(x::Wave, a::Number) = map(b -> b / a, x)
 Base.:\(a::Number, x::Wave) = map(b -> a \ b, x)
 
+################################################################################
+
 function setup(::Type{S}) where {S}
     domain = Domain{S}(0, 1)
     grid = Grid(domain, 20)
@@ -88,7 +90,9 @@ function setup(::Type{S}) where {S}
 end
 
 function init(::Type{T}, grid::Grid) where {T}
-    println("WaveToy.init")
+    # println("WaveToy.init")
+    # ∂ₜₜu = ∂ₓₓu
+    # u(t,x) = f(t+x) + g(t-x)
     # u(t,x) = sin(π t) cos(π x)
     ϕ = project(T, grid, x -> 0)
     ψ = project(T, grid, x -> π * cospi(x))
@@ -96,21 +100,11 @@ function init(::Type{T}, grid::Grid) where {T}
 end
 
 function rhs(state::Wave, param, t)
-    println("WaveToy.rhs t=$t")
+    # println("WaveToy.rhs t=$t")
     ϕdot = state.ψ
     ψdot = deriv2(state.ϕ)
     staterhs = Wave(ϕdot, ψdot)
     return staterhs::Wave
-end
-
-function test()
-    T = Float64
-    grid = setup(T)
-    state0 = init(T, grid)::Wave
-    @show state0
-    @show 2 * state0
-    @show state0 + state0
-    nothing
 end
 
 function main()
@@ -127,6 +121,66 @@ end
 # include("examples/wavetoy.jl")
 # sol = WaveToy.main();
 # using Plots
-# plot([sol(t) for t in LinRange(0, 1, 11)])
+# plot([sol(t).ϕ for t in LinRange(0, 1, 11)])
+
+################################################################################
+
+function setup_sphere(::Type{S}) where {S}
+    domain = Domain{S}(0, 5)
+    grid = Grid(domain, 100)
+    return grid
+end
+
+function init_sphere(::Type{T}, grid::Grid, t::T) where {T}
+    # println("WaveToy.init_sphere")
+    # ∂ₜₜu = ∂ᵣᵣu + 2/r ∂ᵣu
+    # u(t,r) = 1/r f(t+r) + 1/r g(t-r)
+    # u(t,r) = 1/r (exp(-(t-r)²) - exp(-(t+r)²))
+    rmin = sqrt(eps(T))
+    function u(t, r)
+        if abs(r) <= rmin
+            return (4 + 4 / T(3) * (-3 + 2 * t^2) * r^2) * t * exp(-t^2)
+        else
+            return 1 / r * (exp(-(t - r)^2) - exp(-(t + r)^2))
+        end
+    end
+    function u̇(t, r)
+        if abs(r) <= rmin
+            return (4 * (1 - 2 * t^2) +
+                    4 / T(3) * (-3 + 12 * t^2 - 4 * t^4) * r^2) * exp(-t^2)
+        else
+            return -2 / r *
+                   ((t - r) * exp(-(t - r)^2) - (t + r) * exp(-(t + r)^2))
+        end
+    end
+    ϕ = project(T, grid, r -> u(t, r))
+    ψ = project(T, grid, r -> u̇(t, r))
+    return Wave(ϕ, ψ)
+end
+
+function rhs_sphere(state::Wave, param, t)
+    # println("WaveToy.rhs_sphere t=$t")
+    ϕdot = state.ψ
+    ψdot = deriv2_sphere(state.ϕ)
+    staterhs = Wave(ϕdot, ψdot)
+    return staterhs::Wave
+end
+
+function main_sphere()
+    T = Float64
+    grid = setup_sphere(T)
+    t0 = T(0)
+    state = init_sphere(T, grid, t0)::Wave
+    t1 = T(3)
+    prob = ODEProblem(rhs_sphere, state, (t0, t1))
+    atol = eps(T)^(T(3) / 4)
+    sol = solve(prob, Tsit5(); abstol=atol)
+    return sol
+end
+
+# include("examples/wavetoy.jl")
+# sol = WaveToy.main_sphere();
+# using Plots
+# plot([sol(t).ϕ for t in LinRange(0, 3, 11)])
 
 end
